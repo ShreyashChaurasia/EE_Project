@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>3-Phase RLC Analyzer</title>
+  <style>
+    /* === Colors, fonts, and backgrounds === */
+    :root {
+      --primary: #6366f1;
+      --secondary: #4f46e5;
+      --accent: #a5b4fc;
+      --background: linear-gradient(135deg, #1e1e2f 0%, #2d2d44 100%);
+    }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      overflow-x: hidden;
+      background: var(--background);
+    }
+    /* === Background Layers & Animations === */
+    .background-image {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to bottom, #000000 0%, #0a0a2a 30%, #1a1a4a 100%);
+      z-index: -1;
+      overflow: hidden;
+    }
+    .background-image::before,
+    .background-image::after {
+      content: '';
+      position: absolute;
+      width: 300%;
+      height: 300%;
+      background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 100%);
+      animation: rotate 200s linear infinite;
+    }
+    .background-image::after {
+      background: radial-gradient(circle at 30% 70%, rgba(103, 58, 183, 0.2) 0%, rgba(103, 58, 183, 0) 100%);
+      animation-direction: reverse;
+      animation-duration: 150s;
+    }
+    @keyframes rotate {
+      from { transform: translate(-50%, -50%) rotate(0deg); }
+      to { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+    .star-field {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: -1;
+    }
+    .star {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 50%;
+      animation: twinkle 3s ease-in-out infinite;
+    }
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.3; transform: scale(0.5); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+    .shooting-star {
+      position: absolute;
+      width: 100px;
+      height: 2px;
+      background: linear-gradient(to right, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.8) 50%, rgba(255, 255, 255, 0) 100%);
+      animation: shootingStar 1.5s linear infinite;
+      display: none;
+    }
+    @keyframes shootingStar {
+      0% {
+        transform: translateX(-100%) translateY(-100%) rotate(45deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translateX(100vw) translateY(100vh) rotate(45deg);
+        opacity: 0;
+      }
+    }
+    /* === Container and Tabs === */
+    .container {
+      background: rgba(31, 31, 48, 0.9);
+      backdrop-filter: blur(12px);
+      border-radius: 16px;
+      padding: 2rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      max-width: 1000px;
+      width: 90%;
+      margin: 2rem auto;
+      position: relative;
+      z-index: 1;
+    }
+    .tab-nav {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+    }
+    .tab-nav button {
+      background: linear-gradient(45deg, var(--primary), var(--secondary));
+      border: none;
+      border-radius: 8px;
+      padding: 0.8rem 1.2rem;
+      color: white;
+      cursor: pointer;
+      margin: 0 0.5rem;
+      text-transform: uppercase;
+    }
+    .tab-nav button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(99, 102, 241, 0.2);
+    }
+    h1 {
+      text-align: center;
+      font-size: 2.5rem;
+      margin-bottom: 2rem;
+      background: linear-gradient(45deg, #a5b4fc, #6366f1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      font-weight: 700;
+    }
+    /* === Input Grids and Controls === */
+    .input-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .input-group {
+      position: relative;
+    }
+    .input-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+      color: #a5b4fc;
+    }
+    .input-group input {
+      width: 100%;
+      padding: 0.8rem;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      color: white;
+      font-size: 1rem;
+      transition: all 0.3s ease;
+    }
+    .input-group input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+    button {
+      width: 100%;
+      padding: 1rem;
+      background: linear-gradient(45deg, var(--primary), var(--secondary));
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-weight: 600;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 0.5rem;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(99, 102, 241, 0.2);
+    }
+    #plot, #plot_unbalanced {
+      margin-top: 2rem;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 12px;
+      padding: 1rem;
+      position: relative;
+      min-height: 500px;
+      overflow: hidden;
+    }
+    .error {
+      color: #ef4444;
+      margin-top: 1rem;
+      padding: 1rem;
+      background: rgba(239, 68, 68, 0.1);
+      border-radius: 8px;
+      display: none;
+    }
+    .loading {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .loader {
+      width: 48px;
+      height: 48px;
+      border: 5px solid #a5b4fc;
+      border-bottom-color: transparent;
+      border-radius: 50%;
+      animation: rotation 1s linear infinite;
+    }
+    @keyframes rotation {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    /* === Slide Animations === */
+    @keyframes slide-pop-right {
+      0% { transform: translateX(100%) scale(0.8); opacity: 0; }
+      100% { transform: translateX(0) scale(1); opacity: 1; }
+    }
+    @keyframes slide-pop-left {
+      0% { transform: translateX(-100%) scale(0.8); opacity: 0; }
+      100% { transform: translateX(0) scale(1); opacity: 1; }
+    }
+    .slide-in-right { animation: slide-pop-right 0.5s ease-out; }
+    .slide-in-left { animation: slide-pop-left 0.5s ease-out; }
+    .plot-image { width: 100%; }
+    .plot-controls {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 1rem;
+    }
+    #calcDetails, #calcDetails_unbalanced {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      max-height: 300px;
+      overflow-y: auto;
+      display: none;
+      color: white;
+      font-size: 0.9rem;
+    }
+    @media (max-width: 768px) {
+      .input-grid { grid-template-columns: 1fr; }
+      .container { padding: 1rem; }
+      h1 { font-size: 2rem; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Background -->
+  <div class="background-image"></div>
+  <div class="container">
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+      <button id="balancedTab">Balanced Load</button>
+      <button id="unbalancedTab">Unbalanced Load</button>
+    </div>
+    <!-- Balanced Load Tab -->
+    <div id="balancedLoadTab">
+      <h1>3-Phase RLC Circuit Analyzer - Balanced Load</h1>
+      <div class="input-grid">
+        <div class="input-group">
+          <label>Resistance (Ω)</label>
+          <input type="number" id="R" step="0.1" value="10" min="0.1" required>
+        </div>
+        <div class="input-group">
+          <label>Time (s)</label>
+          <input type="number" id="time" step="0.001" value="0.05" min="0" required>
+        </div>
+        <div class="input-group">
+          <label>Inductance (H)</label>
+          <input type="number" id="L" step="0.01" value="0.1" min="0" required>
+        </div>
+        <div class="input-group">
+          <label>Capacitance (F)</label>
+          <input type="number" id="C" step="0.0001" value="0.001" min="0.0001" required>
+        </div>
+        <div class="input-group">
+          <label>Frequency (Hz)</label>
+          <input type="number" id="frequency" step="1" value="50" min="1" required>
+        </div>
+        <div class="input-group">
+          <label>Voltage (V)</label>
+          <input type="number" id="voltage" step="10" value="325" min="1" required>
+        </div>
+      </div>
+      <button id="genBalancedPlotsBtn">Generate Waveforms</button>
+      <button id="calcBalancedBtn">Show/Refresh Calculations</button>
+      <div id="calcDetails"></div>
+      <div class="error" id="error"></div>
+      <div id="plot">
+        <div class="loading" id="loading">
+          <div class="loader"></div>
+        </div>
+      </div>
+      <div class="plot-controls">
+        <button id="prev-plot">◀ Previous</button>
+        <button id="next-plot">Next ▶</button>
+      </div>
+    </div>
+    <!-- Unbalanced Load Tab -->
+    <div id="unbalancedLoadTab" style="display:none;">
+      <h1>3-Phase RLC Circuit Analyzer - Unbalanced Load</h1>
+      <div class="input-grid">
+        <!-- Separate Resistances -->
+        <div class="input-group">
+          <label>Resistance R (Ω)</label>
+          <input type="number" id="R_R" step="0.1" value="10" min="0.1" required>
+        </div>
+        <div class="input-group">
+          <label>Resistance Y (Ω)</label>
+          <input type="number" id="R_Y" step="0.1" value="12" min="0.1" required>
+        </div>
+        <div class="input-group">
+          <label>Resistance B (Ω)</label>
+          <input type="number" id="R_B" step="0.1" value="14" min="0.1" required>
+        </div>
+        <!-- Separate Inductances -->
+        <div class="input-group">
+          <label>Inductance R (H)</label>
+          <input type="number" id="L_R" step="0.01" value="0.1" min="0" required>
+        </div>
+        <div class="input-group">
+          <label>Inductance Y (H)</label>
+          <input type="number" id="L_Y" step="0.01" value="0.11" min="0" required>
+        </div>
+        <div class="input-group">
+          <label>Inductance B (H)</label>
+          <input type="number" id="L_B" step="0.01" value="0.12" min="0" required>
+        </div>
+        <!-- Separate Capacitances -->
+        <div class="input-group">
+          <label>Capacitance R (F)</label>
+          <input type="number" id="C_R" step="0.0001" value="0.001" min="0.0001" required>
+        </div>
+        <div class="input-group">
+          <label>Capacitance Y (F)</label>
+          <input type="number" id="C_Y" step="0.0001" value="0.0011" min="0.0001" required>
+        </div>
+        <div class="input-group">
+          <label>Capacitance B (F)</label>
+          <input type="number" id="C_B" step="0.0001" value="0.0012" min="0.0001" required>
+        </div>
+        <!-- Common Frequency and Voltage -->
+        <div class="input-group">
+          <label>Frequency (Hz)</label>
+          <input type="number" id="frequency_unbalanced" step="1" value="50" min="1" required>
+        </div>
+        <div class="input-group">
+          <label>Voltage (V)</label>
+          <input type="number" id="voltage_unbalanced" step="10" value="325" min="1" required>
+        </div>
+      </div>
+      <button id="genUnbalancedPlotsBtn">Generate Unbalanced Waveforms</button>
+      <button id="calcUnbalancedBtn">Show/Refresh Unbalanced Calculations</button>
+      <div id="calcDetails_unbalanced"></div>
+      <div class="error" id="error_unbalanced"></div>
+      <div id="plot_unbalanced">
+        <div class="loading" id="loading_unbalanced">
+          <div class="loader"></div>
+        </div>
+      </div>
+      <div class="plot-controls">
+        <button id="prev-plot-unbalanced">◀ Previous</button>
+        <button id="next-plot-unbalanced">Next ▶</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    // ---------- BalancedLoad Class (Refactored) ----------
+    class BalancedLoad {
+      constructor() {
+        this.errorEl = document.getElementById('error');
+        this.loadingEl = document.getElementById('loading');
+        this.plotEl = document.getElementById('plot');
+        this.calcDetailsEl = document.getElementById('calcDetails');
+        this.currentPlotType = 'Vt';
+        this.plotTypes = ['Vt', 'It', 'Pt', 'Qt', 'St'];
+        this.slideDirection = 'right';
+        this.cachedPlots = {};
+        // Event listeners for balanced controls
+        document.getElementById('genBalancedPlotsBtn')
+          .addEventListener('click', () => this.updatePlots());
+        document.getElementById('calcBalancedBtn')
+          .addEventListener('click', () => this.updateCalculations());
+        document.getElementById('prev-plot')
+          .addEventListener('click', () => this.changePlotType('prev'));
+        document.getElementById('next-plot')
+          .addEventListener('click', () => this.changePlotType('next'));
+      }
+
+      getInputValues() {
+        return {
+          R: parseFloat(document.getElementById('R').value),
+          L: parseFloat(document.getElementById('L').value),
+          C: parseFloat(document.getElementById('C').value),
+          frequency: parseFloat(document.getElementById('frequency').value),
+          voltage: parseFloat(document.getElementById('voltage').value),
+          time: parseFloat(document.getElementById('time').value)
+        };
+      }
+
+      updatePlots() {
+        const inputs = this.getInputValues();
+        this.errorEl.style.display = 'none';
+        this.loadingEl.style.display = 'block';
+        this.plotEl.innerHTML = '';
+        fetch('/update_all_plots', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(inputs)
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) throw new Error(data.error);
+          this.cachedPlots = data;
+          this.displayPlot(this.currentPlotType);
+        })
+        .catch(err => {
+          this.errorEl.textContent = err.message;
+          this.errorEl.style.display = 'block';
+        })
+        .finally(() => { this.loadingEl.style.display = 'none'; });
+      }
+
+      displayPlot(plotType) {
+        this.plotEl.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = `data:image/png;base64,${this.cachedPlots[plotType]}`;
+        img.alt = "Generated Plot";
+        img.classList.add(this.slideDirection === 'left' ? 'slide-in-left' : 'slide-in-right', 'plot-image');
+        this.plotEl.appendChild(img);
+      }
+
+      changePlotType(direction) {
+        const index = this.plotTypes.indexOf(this.currentPlotType);
+        if (direction === 'next') {
+          this.currentPlotType = this.plotTypes[(index + 1) % this.plotTypes.length];
+          this.slideDirection = 'right';
+        } else {
+          this.currentPlotType = this.plotTypes[(index - 1 + this.plotTypes.length) % this.plotTypes.length];
+          this.slideDirection = 'left';
+        }
+        this.displayPlot(this.currentPlotType);
+      }
+
+      updateCalculations() {
+        const inputs = this.getInputValues();
+        fetch('/calculations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(inputs)
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            this.calcDetailsEl.innerHTML = `<strong>Error:</strong> ${data.error}`;
+          } else {
+            let html = '<h3>Calculation Details</h3><ul>';
+            for (const key in data) {
+              html += `<li><strong>${key}:</strong> ${data[key]}</li>`;
+            }
+            html += '</ul>';
+            this.calcDetailsEl.innerHTML = html;
+          }
+          this.calcDetailsEl.style.display = 'block';
+        })
+        .catch(err => {
+          this.calcDetailsEl.innerHTML = `<strong>Error:</strong> ${err.message}`;
+          this.calcDetailsEl.style.display = 'block';
+        });
+      }
+    }
+
+    // ---------- UnbalancedLoad Class (Refactored) ----------
+    class UnbalancedLoad {
+      constructor() {
+        this.errorEl = document.getElementById('error_unbalanced');
+        this.loadingEl = document.getElementById('loading_unbalanced');
+        this.plotEl = document.getElementById('plot_unbalanced');
+        this.calcDetailsEl = document.getElementById('calcDetails_unbalanced');
+        this.currentPlotType = 'Vt';
+        this.plotTypes = ['Vt', 'It', 'Pt', 'Qt', 'St'];
+        this.slideDirection = 'right';
+        this.cachedPlots = {};
+        // Event listeners for unbalanced controls
+        document.getElementById('genUnbalancedPlotsBtn')
+          .addEventListener('click', () => this.updatePlots());
+        document.getElementById('calcUnbalancedBtn')
+          .addEventListener('click', () => this.updateCalculations());
+        document.getElementById('prev-plot-unbalanced')
+          .addEventListener('click', () => this.changePlotType('prev'));
+        document.getElementById('next-plot-unbalanced')
+          .addEventListener('click', () => this.changePlotType('next'));
+      }
+
+      getInputValues() {
+        return {
+          R_R: parseFloat(document.getElementById('R_R').value),
+          R_Y: parseFloat(document.getElementById('R_Y').value),
+          R_B: parseFloat(document.getElementById('R_B').value),
+          L_R: parseFloat(document.getElementById('L_R').value),
+          L_Y: parseFloat(document.getElementById('L_Y').value),
+          L_B: parseFloat(document.getElementById('L_B').value),
+          C_R: parseFloat(document.getElementById('C_R').value),
+          C_Y: parseFloat(document.getElementById('C_Y').value),
+          C_B: parseFloat(document.getElementById('C_B').value),
+          frequency: parseFloat(document.getElementById('frequency_unbalanced').value),
+          voltage: parseFloat(document.getElementById('voltage_unbalanced').value),
+          time: parseFloat(document.getElementById('time').value)  // shared with balanced tab
+        };
+      }
+
+      updatePlots() {
+        const inputs = this.getInputValues();
+        this.errorEl.style.display = 'none';
+        this.loadingEl.style.display = 'block';
+        this.plotEl.innerHTML = '';
+        fetch('/update_unbalanced_plots', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(inputs)
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) throw new Error(data.error);
+          this.cachedPlots = data;
+          this.displayPlot(this.currentPlotType);
+        })
+        .catch(err => {
+          this.errorEl.textContent = err.message;
+          this.errorEl.style.display = 'block';
+        })
+        .finally(() => { this.loadingEl.style.display = 'none'; });
+      }
+
+      displayPlot(plotType) {
+        this.plotEl.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = `data:image/png;base64,${this.cachedPlots[plotType]}`;
+        img.alt = "Generated Unbalanced Plot";
+        img.classList.add(this.slideDirection === 'left' ? 'slide-in-left' : 'slide-in-right', 'plot-image');
+        this.plotEl.appendChild(img);
+      }
+
+      changePlotType(direction) {
+        const index = this.plotTypes.indexOf(this.currentPlotType);
+        if (direction === 'next') {
+          this.currentPlotType = this.plotTypes[(index + 1) % this.plotTypes.length];
+          this.slideDirection = 'right';
+        } else {
+          this.currentPlotType = this.plotTypes[(index - 1 + this.plotTypes.length) % this.plotTypes.length];
+          this.slideDirection = 'left';
+        }
+        this.displayPlot(this.currentPlotType);
+      }
+
+      updateCalculations() {
+        const inputs = this.getInputValues();
+        fetch('/calculations_unbalanced', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(inputs)
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            this.calcDetailsEl.innerHTML = `<strong>Error:</strong> ${data.error}`;
+          } else {
+            let html = '<h3>Unbalanced Calculation Details</h3><ul>';
+            for (const key in data) {
+              html += `<li><strong>${key}:</strong> ${data[key]}</li>`;
+            }
+            html += '</ul>';
+            this.calcDetailsEl.innerHTML = html;
+          }
+          this.calcDetailsEl.style.display = 'block';
+        })
+        .catch(err => {
+          this.calcDetailsEl.innerHTML = `<strong>Error:</strong> ${err.message}`;
+          this.calcDetailsEl.style.display = 'block';
+        });
+      }
+    }
+
+    // ---------- Background Effects (Stars & Shooting Stars) ----------
+    function createStars() {
+      const starContainer = document.createElement('div');
+      starContainer.className = 'star-field';
+      document.querySelector('.background-image').appendChild(starContainer);
+      for (let i = 0; i < 200; i++) {
+        const star = document.createElement('div');
+        star.className = 'star';
+        star.style.left = `${Math.random() * 100}%`;
+        star.style.top = `${Math.random() * 100}%`;
+        star.style.animationDuration = `${2 + Math.random() * 3}s`;
+        starContainer.appendChild(star);
+      }
+    }
+    function createShootingStars() {
+      setInterval(() => {
+        const star = document.createElement('div');
+        star.className = 'shooting-star';
+        star.style.left = `${Math.random() * 100}%`;
+        star.style.top = `${Math.random() * 100}%`;
+        document.querySelector('.background-image').appendChild(star);
+        setTimeout(() => star.remove(), 1500);
+      }, 5000);
+    }
+
+    // ---------- Tab Switching and Initialization ----------
+    document.addEventListener('DOMContentLoaded', () => {
+      createStars();
+      createShootingStars();
+
+      // Set up tab switching
+      const balancedTabBtn = document.getElementById('balancedTab');
+      const unbalancedTabBtn = document.getElementById('unbalancedTab');
+      const balancedTabDiv = document.getElementById('balancedLoadTab');
+      const unbalancedTabDiv = document.getElementById('unbalancedLoadTab');
+
+      let balancedInstance = new BalancedLoad();
+      let unbalancedInstance = null;
+
+      balancedTabBtn.addEventListener('click', () => {
+        balancedTabDiv.style.display = 'block';
+        unbalancedTabDiv.style.display = 'none';
+      });
+      unbalancedTabBtn.addEventListener('click', () => {
+        balancedTabDiv.style.display = 'none';
+        unbalancedTabDiv.style.display = 'block';
+        if (!unbalancedInstance) {
+          unbalancedInstance = new UnbalancedLoad();
+        }
+        unbalancedInstance.updatePlots();
+      });
+
+      // Optionally, you can auto-update balanced plots on input change:
+      document.querySelectorAll('#balancedLoadTab input').forEach(input => {
+        input.addEventListener('input', () => {
+          if (input.checkValidity()) balancedInstance.updatePlots();
+        });
+      });
+      // And auto-update unbalanced plots on input change:
+      document.querySelectorAll('#unbalancedLoadTab input').forEach(input => {
+        input.addEventListener('input', () => {
+          if (input.checkValidity() && unbalancedInstance) unbalancedInstance.updatePlots();
+        });
+      });
+    });
+  </script>
+</body>
+</html>
